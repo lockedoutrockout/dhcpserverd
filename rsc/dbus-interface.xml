@@ -1,0 +1,30 @@
+<node>
+    <interface name="com.templated.Template">
+        <!-- Methods -->
+        <method name="Start"/>
+        <method name="Stop"/>
+        <method name="Restart"/>
+        <method name="ApplyConfiguration"/>
+
+        <!-- Properties -->
+        <!-- Read Only -->
+        <property name="State" type="s" access="read"/>
+        <!-- Read/Write -->
+        <property name="Foo" type="s" access="readwrite"/>
+
+        <!-- Signals -->
+        <signal name="StateChanged">
+            <arg type="s" name="old_state"/>
+            <arg type="s" name="new_state"/>
+        </signal>
+        <signal name="ConfigurationChanged">
+            <arg type="s" name="setting"/>
+            <arg type="s" name="old_value"/>
+            <arg type="s" name="new_value"/>
+        </signal>
+        <signal name="ConfigurationApplied">
+            <arg type="a{sv}" name="old_config"/>
+            <arg type="a{sv}" name="new_config"/>
+        </signal>
+    </interface>
+</node>
