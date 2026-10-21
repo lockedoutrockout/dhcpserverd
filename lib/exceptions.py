@@ -33,3 +33,11 @@ class SyscallNonZeroRetcodeError(Exception):
     def __init__(self, message):
         self.message = message
         super().__init__(self.message)
+
+class LeaseError(Exception):
+    """ Handles errors related to DHCP IP address leasing
+    """
+    def __init__(self, message):
+        self.message = message
+        super().__init__(self.message)
+    

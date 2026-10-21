@@ -1,12 +1,12 @@
 [Unit]
-Description=Template daemon
+Description=DHCP server daemon
 After=dbus.service
 Requires=dbus.service
 
 [Service]
 Type=dbus
-BusName=com.templated.Template
-ExecStart=/usr/bin/templated /etc/templated/config/templated.ini
+BusName=com.dhcpserverd.DHCPServer
+ExecStart=/usr/bin/dhcpserverd /etc/dhcpserverd/config/dhcpserverd.ini
 Restart=on-failure
 User=root
 Group=root

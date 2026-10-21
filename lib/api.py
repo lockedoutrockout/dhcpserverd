@@ -20,18 +20,32 @@ BUS_NAME = "com.templated.Template"
 OBJECT_PATH = "/com/templated/Template"
 INTERFACE_XML = """
 <node>
-    <interface name="com.templated.Template">
+    <interface name="com.dhcpserverd.DHCPServer">
         <!-- Methods -->
         <method name="Start"/>
         <method name="Stop"/>
         <method name="Restart"/>
         <method name="ApplyConfiguration"/>
+        <method name="AddStaticLease">
+            <arg type="s" name="mac_addr" direction="in"/>
+            <arg type="s" name="ip_addr" direction="in"/>
+            <arg type="i" name="id" direction="out"/>
+        </method>
+        <method name="RemoveStaticLease">
+            <arg type="i" name="id" direction="in"/>
+        </method>
 
         <!-- Properties -->
         <!-- Read Only -->
         <property name="State" type="s" access="read"/>
+        <property name="Leases" type="a{sv}" access="read"/>
+        <property name="DynamicLeases" type="a{sv}" access="read"/>
+        <property name="StaticLeases" type="a{sv}" access="read"/>
         <!-- Read/Write -->
-        <property name="Foo" type="s" access="readwrite"/>
+        <property name="IPLeasePool" type="as" access="readwrite"/>
+        <property name="IPLeaseDuration" type="s" access="readwrite"/>
+        <property name="GatewayIP" type="s" access="readwrite"/>
+        <property name="DNSServerIP" type="s" access="readwrite"/>
 
         <!-- Signals -->
         <signal name="StateChanged">
@@ -47,6 +61,10 @@ INTERFACE_XML = """
             <arg type="a{sv}" name="old_config"/>
             <arg type="a{sv}" name="new_config"/>
         </signal>
+        <signal name="LeaseEvent">
+            <arg type="s" name="type"/>
+            <arg type="s" name="mac_addr"/>
+        </signal>
     </interface>
 </node>
 """
@@ -59,7 +77,7 @@ def dict_to_dbus_asv(d):
         d[k] = s
     return d
 
-class TemplateService(datatypes.Template):
+class DHCPServerService(datatypes.DHCPServer):
     """ DBus interface object
     """
 
@@ -67,6 +85,7 @@ class TemplateService(datatypes.Template):
     StateChanged = signal()
     ConfigurationChanged = signal()
     ConfigurationApplied = signal()
+    LeaseEvent = signal()
 
     def __init__(self):
         self.version = "0.1"
@@ -124,7 +143,27 @@ class TemplateService(datatypes.Template):
             self._ApplyConfiguration()
             self.ConfigurationApplied(_old, dict_to_dbus_asv(self.settings))
         except Exception as err_msg:
-            self.logger.error(f"DBus API encountered an exception during call to Apply: {err_msg}")
+            self.logger.error(f"DBus API encountered an exception during call to ApplyConfiguration: {err_msg}")
+        return None
+
+    def AddStaticLease(self, mac_addr, ip_addr):
+        """ Add a static lease
+        """
+        self.logger.info(f"DBus API got call to AddStaticLease")
+        try:
+            self._AddStaticLease(mac_addr, ip_addr)
+        except Exception as err_msg:
+            self.logger.error(f"DBus API encountered an exception during call to AddStaticLease: {err_msg}")
+        return None
+
+    def RemoveStaticLease(self, mac_addr, ip_addr):
+        """ Remove a static lease
+        """
+        self.logger.info(f"DBus API got call to RemoveStaticLease")
+        try:
+            self._RemoveStaticLease(mac_addr, ip_addr)
+        except Exception as err_msg:
+            self.logger.error(f"DBus API encountered an exception during call to RemoveStaticLease: {err_msg}")
         return None
 
     # Properties
@@ -133,18 +172,72 @@ class TemplateService(datatypes.Template):
         return self.state
 
     @property
-    def Foo(self):
-        return self.settings["Foo"]
-    @Foo.setter
-    def Foo(self, value):
-        self.logger.info(f"Readwrite property Foo set to {value} from {self._settings["Foo"]}")
-        _old = self._settings["Foo"]
+    def Leases(self):
+        return self.leases
+
+    @property
+    def DynamicLeases(self):
+        return self.dynamic_leases
+
+    @property
+    def StaticLeases(self):
+        return self.static_leases
+
+    @property
+    def IPLeasePool(self):
+        return self.settings["IPLeasePool"]
+    @IPLeasePool.setter
+    def IPLeasePool(self, value):
+        self.logger.info(f"Readwrite property IPLeasePool set to {value} from {self._settings["IPLeasePool"]}")
+        _old = self._settings["IPLeasePool"]
         try:
-            self._settings["Foo"] = value
-            self.ConfigurationChanged("Foo", _old, self._settings["Foo"])
+            self._settings["IPLeasePool"] = value
+            self.ConfigurationChanged("IPLeasePool", _old, self._settings["IPLeasePool"])
         except Exception as err_msg:
-            self.logger.error(f"DBus API encountered an exception while setting value of readwrite property Foo from: {_old} to: {value}")
-            raise exceptions.ConfigurationError(f"Failed to update value of read/write property: Foo")
+            self.logger.error(f"DBus API encountered an exception while setting value of readwrite property IPLeasePool from: {_old} to: {value}")
+            raise exceptions.ConfigurationError(f"Failed to update value of read/write property: IPLeasePool")
+
+    @property
+    def IPLeaseDuration(self):
+        return self.settings["IPLeaseDuration"]
+    @IPLeaseDuration.setter
+    def IPLeaseDuration(self, value):
+        self.logger.info(f"Readwrite property IPLeaseDuration set to {value} from {self._settings["IPLeaseDuration"]}")
+        _old = self._settings["IPLeaseDuration"]
+        try:
+            self._settings["IPLeaseDuration"] = value
+            self.ConfigurationChanged("IPLeaseDuration", _old, self._settings["IPLeaseDuration"])
+        except Exception as err_msg:
+            self.logger.error(f"DBus API encountered an exception while setting value of readwrite property IPLeaseDuration from: {_old} to: {value}")
+            raise exceptions.ConfigurationError(f"Failed to update value of read/write property: IPLeaseDuration")
+
+    @property
+    def GatewayIP(self):
+        return self.settings["GatewayIP"]
+    @GatewayIP.setter
+    def GatewayIP(self, value):
+        self.logger.info(f"Readwrite property GatewayIP set to {value} from {self._settings["GatewayIP"]}")
+        _old = self._settings["GatewayIP"]
+        try:
+            self._settings["GatewayIP"] = value
+            self.ConfigurationChanged("GatewayIP", _old, self._settings["GatewayIP"])
+        except Exception as err_msg:
+            self.logger.error(f"DBus API encountered an exception while setting value of readwrite property GatewayIP from: {_old} to: {value}")
+            raise exceptions.ConfigurationError(f"Failed to update value of read/write property: GatewayIP")
+
+    @property
+    def DNSServerIP(self):
+        return self.settings["DNSServerIP"]
+    @DNSServerIP.setter
+    def DNSServerIP(self, value):
+        self.logger.info(f"Readwrite property DNSServerIP set to {value} from {self._settings["DNSServerIP"]}")
+        _old = self._settings["DNSServerIP"]
+        try:
+            self._settings["DNSServerIP"] = value
+            self.ConfigurationChanged("DNSServerIP", _old, self._settings["DNSServerIP"])
+        except Exception as err_msg:
+            self.logger.error(f"DBus API encountered an exception while setting value of readwrite property DNSServerIP from: {_old} to: {value}")
+            raise exceptions.ConfigurationError(f"Failed to update value of read/write property: DNSServerIP")
 
 def init_dbus_api(name=BUS_NAME, path=OBJECT_PATH, xml=INTERFACE_XML, logger=None):
     """ Launch the DBus interface
