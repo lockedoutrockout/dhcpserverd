@@ -34,13 +34,19 @@ INTERFACE_XML = """
         <method name="RemoveStaticLease">
             <arg type="i" name="id" direction="in"/>
         </method>
+        <method name="EventScriptCallback">
+            <arg type="s" name="action" direction="in"/>
+            <arg type="s" name="mac_addr" direction="in"/>
+            <arg type="s" name="ip_addr" direction="in"/>
+            <arg type="s" name="hostname" direction="in"/>
+        </method>
 
         <!-- Properties -->
         <!-- Read Only -->
         <property name="State" type="s" access="read"/>
-        <property name="Leases" type="a{sv}" access="read"/>
-        <property name="DynamicLeases" type="a{sv}" access="read"/>
-        <property name="StaticLeases" type="a{sv}" access="read"/>
+        <property name="Leases" type="aa{sv}" access="read"/>
+        <property name="DynamicLeases" type="aa{sv}" access="read"/>
+        <property name="StaticLeases" type="aa{sv}" access="read"/>
         <!-- Read/Write -->
         <property name="IPLeasePool" type="as" access="readwrite"/>
         <property name="IPLeaseDuration" type="s" access="readwrite"/>
@@ -61,9 +67,9 @@ INTERFACE_XML = """
             <arg type="a{sv}" name="old_config"/>
             <arg type="a{sv}" name="new_config"/>
         </signal>
-        <signal name="LeaseEvent">
-            <arg type="s" name="type"/>
-            <arg type="s" name="mac_addr"/>
+        <signal name="DHCPLeaseEvent">
+            <arg type="s" name="event_type"/>
+            <arg type="a{sv}" name="lease"/>
         </signal>
     </interface>
 </node>
@@ -85,7 +91,7 @@ class DHCPServerService(datatypes.DHCPServer):
     StateChanged = signal()
     ConfigurationChanged = signal()
     ConfigurationApplied = signal()
-    LeaseEvent = signal()
+    DHCPLeaseEvent = signal()
 
     def __init__(self):
         self.version = "0.1"
@@ -146,25 +152,39 @@ class DHCPServerService(datatypes.DHCPServer):
             self.logger.error(f"DBus API encountered an exception during call to ApplyConfiguration: {err_msg}")
         return None
 
-    def AddStaticLease(self, mac_addr, ip_addr):
+    def AddStaticLease(self, mac_addr, ip_addr, hostname):
         """ Add a static lease
         """
         self.logger.info(f"DBus API got call to AddStaticLease")
         try:
-            self._AddStaticLease(mac_addr, ip_addr)
+            id_ = self._AddStaticLease(mac_addr, ip_addr, hostname)
+            self.DHCPLeaseEvent("lease established", self.dhcp_leases.search_leases(id_, category="static", search_param="id"))
         except Exception as err_msg:
             self.logger.error(f"DBus API encountered an exception during call to AddStaticLease: {err_msg}")
         return None
 
-    def RemoveStaticLease(self, mac_addr, ip_addr):
+    def RemoveStaticLease(self, id_):
         """ Remove a static lease
         """
         self.logger.info(f"DBus API got call to RemoveStaticLease")
         try:
-            self._RemoveStaticLease(mac_addr, ip_addr)
+            lease = self._RemoveStaticLease(id_)
+            self.DHCPLeaseEvent("lease expired", lease)
         except Exception as err_msg:
             self.logger.error(f"DBus API encountered an exception during call to RemoveStaticLease: {err_msg}")
         return None
+
+    def EventScriptCallback(self, action, mac_addr, ip_addr, hostname):
+        """ Callback method for DHCP event script
+        """
+        self.logger.info(f"DBus API got call to EventScriptCallback")
+        try:
+            event_type, lease = self._EventScriptCallback(action, mac_addr, ip_addr, hostname)
+            self.DHCPLeaseEvent(event_type, lease)
+        except Exception as err_msg:
+            self.logger.error(f"DBus API encountered an exception during call to RemoveStaticLease: {err_msg}")
+        return None
+        
 
     # Properties
     @property
@@ -173,15 +193,15 @@ class DHCPServerService(datatypes.DHCPServer):
 
     @property
     def Leases(self):
-        return self.leases
+        return self.dhcp_leases.leases["all"]
 
     @property
     def DynamicLeases(self):
-        return self.dynamic_leases
+        return self.dhcp_leases.leases["by_category"]["dynamic"]
 
     @property
     def StaticLeases(self):
-        return self.static_leases
+        return self.dhcp_leases.leases["by_category"]["static"]
 
     @property
     def IPLeasePool(self):

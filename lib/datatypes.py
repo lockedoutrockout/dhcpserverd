@@ -10,6 +10,104 @@ import signal
 import subprocess
 from . import exceptions
 
+"""
+DHCP Lease Dictionary Structure
+
+lease = {
+    "id": 1, # Unique identifier for the lease
+    "category": "dynamic", # Type of lease. Can be 'dynamic' or 'static'
+    "mac_addr": "AA:BB:CC:DD:EE:FF", # MAC address
+    "ip_addr": "192.168.0.10", # IP address
+    "hostname": "some.device" # Hostname
+}
+"""
+
+class DHCPLeaseList(object):
+    """ DHCP lease list object
+    """
+    def __init__(self, settings, config=None, logger=None):
+        self.config = config
+        self.logger = logger
+        self.settings = settings
+        self.leases = {
+            "all": [],
+            "by_category": {
+                "dynamic": [],
+                "static": []
+            }
+        }
+
+    def search_leases(self, query, category="any", search_param="id"):
+        """ Search leases
+        """
+        if category == "any":
+            target = self.leases["all"]
+        elif category == "dynamic":
+            target = self.leases["by_category"]["dynamic"]
+        elif category == "static":
+            target = self.leases["by_category"]["static"]
+
+        for item in target:
+            if search_param == "id":
+                if int(query) == item["id"]:
+                    return item
+            elif search_param == "mac_addr":
+                if query == item["mac_addr"]:
+                    return item
+            elif search_param == "ip_addr":
+                if query == item["ip_addr"]:
+                    return item
+            elif search_param == "hostname":
+                if query == item["hostname"]:
+                    return item
+
+        return None
+
+    def add_lease(self, category, mac_addr, ip_addr, hostname):
+        """ Add a new DHCP lease
+        """
+        if category not in ("dynamic", "static"):
+            raise exceptions.DNSLeaseListError(f"Invalid category: {category}")
+        if category == "dynamic":
+            if self.search_leases(mac_addr, category="dynamic", search_param="mac_addr"):
+                raise exceptions.DHCPLeaseListError(f"A dynamic DHCP lease already exists for MAC address: {mac_addr}")
+        else:
+            if self.search_leases(mac_addr, category="static", search_param="mac_addr"):
+                raise exceptions.DHCPLeaseListError(f"A static DHCP lease already exists for MAC address: {mac_addr}")
+            
+            
+        id_ = len(self.leases["all"]) + 1
+        while self.search_leases(id_, category="any", search_param="id") is not None:
+            id_ += 1
+        lease = {
+            "id": id_,
+            "category": category,
+            "mac_addr": mac_addr,
+            "ip_addr": ip_addr,
+            "hostname": hostname
+        }
+        if category == "static":
+            ip_collision = self.search_leases(ip_addr, category="static", search_param="ip_addr")
+            if ip_collision:
+                raise exceptions.DHCPLeaseListError(f"Cannot create static lease! IP address already assigned: {ip_addr}")
+            dynamic = self.search_leases(mac_addr, category="dynamic", search_param="mac_addr")
+            if dynamic:
+                self.remove_lease(dynamic["id"])
+        self.leases["all"].append(lease)
+        self.leases["by_category"][lease["category"]].append(lease)
+        return id_
+
+    def remove_lease(self, id_):
+        """ Remove an existing DHCP lease
+        """
+        if not self.search_leases(id_, category="any", search_param="id"):
+            raise exceptions.DNSLeaseListError(f"No lease exists with an ID of: {id_}")
+        lease = self.search_leases(id_, category="any", search_param="id")
+        self.leases["all"].remove(lease)
+        self.leases["by_category"][lease["category"]].remove(lease)
+        return lease
+        
+
 class DHCPServer(object):
     """ DHCP server backend
     """
@@ -18,9 +116,6 @@ class DHCPServer(object):
         self.logger = logger
         self.processes = {}
         self.state = "not running"
-        self.leases = []
-        self.dynamic_leases = []
-        self.static_leases = []
         self.settings = {
             "IPLeasePool": (self.config["DHCP"]["ip_lease_pool_start"], self.config["DHCP"]["ip_lease_pool_end"]),
             "IPLeaseDuration": self.config["DHCP"]["ip_lease_duration"],
@@ -33,32 +128,8 @@ class DHCPServer(object):
             "GatewayIP": self.config["DHCP"]["gateway_ip"],
             "DNSServerIP": self.config["DHCP"]["dns_server_ip"]
         }
-
-    def _search_leases(self, query, lease_type="any", search_param="id"):
-        """ Search leases
-        """
-        if lease_type == "any":
-            target = self.leases
-        elif lease_type == "dynamic":
-            target = self.dynamic_leases
-        elif lease_type == "static":
-            target = self.static_leases
-
-        for item in target:
-            if search_param == "id":
-                if int(query) == item[0]:
-                    return item
-            elif search_param == "mac_addr":
-                elif query == item[1]:
-                    return item
-            elif search_param == "ip_addr":
-                elif query == item[2]:
-                    return item
-            elif search_param == "hostname":
-                elif query == item[3]:
-                    return item
-
-        return None
+        self.dhcp_leases = DHCPLeaseList(self.settings, config=self.config, logger=self.logger)
+        
 
     def _gen_dnsmasq_config(self, outfile):
         """ Generate the dnsmasq configuration file
@@ -88,7 +159,7 @@ class DHCPServer(object):
         """ Generate the static lease entries for the dnsmasq config file
         """
         entries = []
-        for lease in self.static_leases:
+        for lease in self.dhcp_leases.leases["by_category"]["static"]:
             hostname = lease[3] if lease[3] else ""
             entry = f"{lease[1]},{lease[2]},{hostname},infinite"
             entries.append(entry)
@@ -214,28 +285,11 @@ class DHCPServer(object):
             raise err_msg
         return None
 
-    def _AddStaticLease(self, mac_addr, ip_addr):
+    def _AddStaticLease(self, mac_addr, ip_addr, hostname):
         """ Add a static lease
         """
-        if self._search_leases(mac_addr, lease_type="static", search_param="mac_addr"):
-            raise exceptions.LeaseError(f"A static lease for {mac_addr} already exists")
         try:
-            id_ = len(self.leases) + 1
-            while self._search_leases(query, lease_type="any", search_param="id"):
-                id_ += 1
-            existing = self._search_leases(mac_addr, lease_type="any", search_param="mac_addr")
-            if existing:
-                hostname = existing[3]
-            else:
-                hostname = None
-            lease = (id_, mac_addr, ip_addr, hostname)
-
-            dynamic = self._search_leases(mac_addr, lease_type="dynamic", search_param="mac_addr")
-            if dynamic:
-                self.dynamic_leases.remove(dynamic)
-            self.leases.append(lease)
-            self.static_leases.append(lease)
-
+            id_ = self.dhcp_leases.add_lease("static", mac_addr, ip_addr, hostname)
             self._gen_hosts_file()
             self._reload_dnsmasq()
         except Exception as err_msg:
@@ -245,12 +299,32 @@ class DHCPServer(object):
     def _RemoveStaticLease(self, id_):
         """ Remove a static lease
         """
-        if not self._search_leases(id_, lease_type="static", search_param="id"):
-            raise exceptions.LeaseError(f"A static lease for {id_} does not exist")
         try:
-            self.static_leases.remove(self._search_leases(id_, lease_type="static", search_param="id"))
+            lease = self.dhcp_leases.remove_lease(id_)
             self._gen_hosts_file()
             self._reload_dnsmasq()
         except Exception as err_msg:
             raise err_msg
-        return None
+        return lease
+
+    def _EventScriptCallback(self, action, mac_addr, ip_addr, hostname):
+        """ Event script callback logic
+        """
+        if action in ("add", "add6"):
+            try:
+                id_ = self.dhcp_leases.add_lease("dynamic", mac_addr, ip_addr, hostname)
+                return ("lease established", self.dhcp_leases.search_leases(id_, category="any", search_param="id"))
+            except Exception as err_msg:
+                raise err_msg
+        if action in ("old", "old6"):
+            try:
+                return ("lease renewed", self.dhcp_leases.search_leases(mac_addr, category="any", search_param="mac_addr"))
+            except Exception as err_msg:
+                raise err_msg
+        if action in ("del", "del6"):
+            try:
+                lease = self.dhcp_leases.search_leases(mac_addr, category="any", search_param="mac_addr")
+                self.dhcp_leases.remove_lease(lease["id"])
+                return ("lease expired", lease)
+            except Exception as err_msg:
+                raise err_msg
