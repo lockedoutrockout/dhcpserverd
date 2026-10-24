@@ -13,16 +13,22 @@
         <method name="RemoveStaticLease">
             <arg type="i" name="id" direction="in"/>
         </method>
+        <method name="EventScriptCallback">
+            <arg type="s" name="action" direction="in"/>
+            <arg type="s" name="mac_addr" direction="in"/>
+            <arg type="s" name="ip_addr" direction="in"/>
+            <arg type="s" name="hostname" direction="in"/>
+        </method>
 
         <!-- Properties -->
         <!-- Read Only -->
         <property name="State" type="s" access="read"/>
-        <property name="Leases" type="a{sv}" access="read"/>
-        <property name="DynamicLeases" type="a{sv}" access="read"/>
-        <property name="StaticLeases" type="a{sv}" access="read"/>
+        <property name="Leases" type="aa{sv}" access="read"/>
+        <property name="DynamicLeases" type="aa{sv}" access="read"/>
+        <property name="StaticLeases" type="aa{sv}" access="read"/>
         <!-- Read/Write -->
         <property name="IPLeasePool" type="as" access="readwrite"/>
-        <property name="IPLeaseDuration" type="i" access="readwrite"/>
+        <property name="IPLeaseDuration" type="s" access="readwrite"/>
         <property name="GatewayIP" type="s" access="readwrite"/>
         <property name="DNSServerIP" type="s" access="readwrite"/>
 
@@ -40,9 +46,9 @@
             <arg type="a{sv}" name="old_config"/>
             <arg type="a{sv}" name="new_config"/>
         </signal>
-        <signal name="LeaseEvent">
-            <arg type="s" name="type"/>
-            <arg type="s" name="mac_addr"/>
+        <signal name="DHCPLeaseEvent">
+            <arg type="s" name="event_type"/>
+            <arg type="a{sv}" name="lease"/>
         </signal>
     </interface>
 </node>

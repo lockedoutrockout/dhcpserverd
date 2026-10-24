@@ -16,8 +16,8 @@ from . import (
     exceptions
 )
 
-BUS_NAME = "com.templated.Template"
-OBJECT_PATH = "/com/templated/Template"
+BUS_NAME = "com.dhcpserverd.DHCPServer"
+OBJECT_PATH = "/com/dhcpserverd/DHCPServer"
 INTERFACE_XML = """
 <node>
     <interface name="com.dhcpserverd.DHCPServer">
