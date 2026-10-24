@@ -8,6 +8,7 @@ import os
 import sys
 import signal
 import subprocess
+import threading
 from . import exceptions
 
 """
@@ -67,7 +68,7 @@ class DHCPLeaseList(object):
         """ Add a new DHCP lease
         """
         if category not in ("dynamic", "static"):
-            raise exceptions.DNSLeaseListError(f"Invalid category: {category}")
+            raise exceptions.DHCPLeaseListError(f"Invalid category: {category}")
         if category == "dynamic":
             if self.search_leases(mac_addr, category="dynamic", search_param="mac_addr"):
                 raise exceptions.DHCPLeaseListError(f"A dynamic DHCP lease already exists for MAC address: {mac_addr}")
@@ -138,13 +139,13 @@ class DHCPServer(object):
         for setting in [
             f"interface={self.config['HARDWARE']['interface']}",
             f"bind-interfaces",
-            f"dhcp-range={self.settings['IPLeasePool'][0]},{self.settings['IPLeasePool'][1]},{self.settings['IPLeaseDuration']}"
+            f"dhcp-range={self.settings['IPLeasePool'][0]},{self.settings['IPLeasePool'][1]},{self.settings['IPLeaseDuration']}",
             f"port=0",
             f"dhcp-option=3,{self.settings['GatewayIP']}",
             f"dhcp-option=6,{self.settings['DNSServerIP']}",
             f"log-dhcp",
-            f"dhcp-leasefile={self.config['DNSMASQ']['leases_file']}"
-            f"dhcp-hostsfile={self.config['DNSMASQ']['hosts_file']}"
+            f"dhcp-leasefile={self.config['DNSMASQ']['leases_file']}",
+            f"dhcp-hostsfile={self.config['DNSMASQ']['hosts_file']}",
             f"dhcp-script=/etc/dhcpserverd/rsc/event-script.sh"
         ]:
             settings.append(setting)
@@ -160,9 +161,7 @@ class DHCPServer(object):
         """
         entries = []
         for lease in self.dhcp_leases.leases["by_category"]["static"]:
-            hostname = lease[3] if lease[3] else ""
-            entry = f"{lease[1]},{lease[2]},{hostname},infinite"
-            entries.append(entry)
+            entries.append(f"{lease["mac_addr"]},{lease["ip_addr"]},{lease["hostname"]},infinite")
 
         with open(self.config["DNSMASQ"]["hosts_file"], "w") as fd:
             for entry in entries:
@@ -227,7 +226,7 @@ class DHCPServer(object):
             raise exceptions.StateChangeError(f"DHCP server is already running")
         try:
             self.state = "starting"
-            self._gen_dnsmasq_config(self.config["HOSTAPD"]["config_file"])
+            self._gen_dnsmasq_config(self.config["DNSMASQ"]["config_file"])
             self._gen_hosts_file()
             threading.Thread(target=_dnsmasq_runner, args=(self.logger, self.config), daemon=True).start()
             time.sleep(0.5)

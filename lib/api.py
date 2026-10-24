@@ -208,7 +208,7 @@ class DHCPServerService(datatypes.DHCPServer):
         return self.settings["IPLeasePool"]
     @IPLeasePool.setter
     def IPLeasePool(self, value):
-        self.logger.info(f"Readwrite property IPLeasePool set to {value} from {self._settings["IPLeasePool"]}")
+        self.logger.info(f"Readwrite property IPLeasePool set to {value} from {self._settings['IPLeasePool']}")
         _old = self._settings["IPLeasePool"]
         try:
             self._settings["IPLeasePool"] = value
@@ -222,7 +222,7 @@ class DHCPServerService(datatypes.DHCPServer):
         return self.settings["IPLeaseDuration"]
     @IPLeaseDuration.setter
     def IPLeaseDuration(self, value):
-        self.logger.info(f"Readwrite property IPLeaseDuration set to {value} from {self._settings["IPLeaseDuration"]}")
+        self.logger.info(f"Readwrite property IPLeaseDuration set to {value} from {self._settings['IPLeaseDuration']}")
         _old = self._settings["IPLeaseDuration"]
         try:
             self._settings["IPLeaseDuration"] = value
@@ -236,7 +236,7 @@ class DHCPServerService(datatypes.DHCPServer):
         return self.settings["GatewayIP"]
     @GatewayIP.setter
     def GatewayIP(self, value):
-        self.logger.info(f"Readwrite property GatewayIP set to {value} from {self._settings["GatewayIP"]}")
+        self.logger.info(f"Readwrite property GatewayIP set to {value} from {self._settings['GatewayIP']}")
         _old = self._settings["GatewayIP"]
         try:
             self._settings["GatewayIP"] = value
@@ -250,7 +250,7 @@ class DHCPServerService(datatypes.DHCPServer):
         return self.settings["DNSServerIP"]
     @DNSServerIP.setter
     def DNSServerIP(self, value):
-        self.logger.info(f"Readwrite property DNSServerIP set to {value} from {self._settings["DNSServerIP"]}")
+        self.logger.info(f"Readwrite property DNSServerIP set to {value} from {self._settings['DNSServerIP']}")
         _old = self._settings["DNSServerIP"]
         try:
             self._settings["DNSServerIP"] = value
@@ -265,6 +265,6 @@ def init_dbus_api(name=BUS_NAME, path=OBJECT_PATH, xml=INTERFACE_XML, logger=Non
     if logger:
         logger.info(f"Bringing up DBus API. Interface: {name} Path: {path}")
     bus = SystemBus()
-    bus.publish(name, (path, TemplateService(), xml))
+    bus.publish(name, (path, DHCPServerService(), xml))
     GLib.MainLoop().run()
     return None

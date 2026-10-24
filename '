@@ -1,0 +1,23 @@
+PROJECT TODO'S:
+---------------
+[ ] - Write the DHCP event script that dnsmasq uses to pass events to the daemon (rsc/event-script.sh)
+
+[*] - Implement an EventScriptCallback method for the daemon's DBus API to handle DHCP events forwarded from dnsmasq by the event script
+
+[*] - Fix the nested double quotes inside format strings
+
+[ ] - Fix config file; remove duplicate keys, ensure needed sections and settings are present, replace incorrect section and setting names
+
+[*] - Replace template placeholders in bus.publish() and elsewhere
+
+[*] - Fix imports in lib/datatypes.py
+
+[*] - Add missing commas in _gen_dnsmasq_config()
+
+[*] - Update _gen_hosts_file() to accomodate structural changes
+
+[ ] - Match DBus API definition to implementation and vice-versa, as needed
+
+[ ] - Add better edge case handling in _EventScriptCallback()
+
+[ ] - Write rsc/event-script.sh
